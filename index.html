@@ -50,8 +50,27 @@ async function addComment(event,form){event.preventDefault();if(!form||!form.mat
 async function toggleLike(id){if(!id||!currentUser)return toast('Please sign in again.',true);try{const {data:{session}}=await sb.auth.getSession();if(!session?.user?.id)throw Error('Please sign in again.');const already=likedIds.has(String(id));const r=already?await sb.from('post_likes').delete().eq('post_id',id).eq('user_id',session.user.id):await sb.from('post_likes').insert({post_id:id,user_id:session.user.id});if(r.error)throw r.error;await loadFeed(true);}catch(e){console.error(e);toast(e.message||'Could not update like.',true);}}
 async function deletePost(id){if(!id||!confirm('Delete this post? This cannot be undone.'))return;try{const {error}=await sb.from('posts').delete().eq('id',id);if(error)throw error;await loadFeed(true);toast('Post deleted.');}catch(e){console.error(e);toast(e.message||'Could not delete post.',true);}}
 async function loadPending(){if(!myProfile?.is_admin)return;const el=$('pending');el.innerHTML='<div class="loading">Loading requests…</div>';try{const {data,error}=await sb.from('profiles').select('id,display_name,created_at,is_approved').eq('is_approved',false).order('created_at',{ascending:true}).limit(100);if(error)throw error;if(!data?.length){el.innerHTML='<div class="empty">No pending requests 🎉</div>';return;}el.innerHTML=data.map(p=>`<div class="adminrow"><div><div class="name">${esc(p.display_name||'New member')}</div><div class="meta">${esc(ago(p.created_at))}</div></div><button type="button" class="btn tiny approve-user" data-id="${esc(p.id)}"><i class="fa-solid fa-check"></i> Approve</button></div>`).join('');}catch(e){console.error(e);el.innerHTML=`<p class="small" style="color:#fecdd3">${esc(e.message||'Could not load requests.')}</p>`;}}
-async function approveUser(id){if(!myProfile?.is_admin)return toast('Admin access required.',true);try{const {error}=await sb.from('profiles').update({is_approved:true}).eq('id',id);if(error)throw error;toast('Member approved.');await loadPending();}catch(e){console.error(e);toast(e.message||'Could not approve user.',true);}}
-let selectedChatFriend='';
+async function approveUser(id) {
+  if (!myProfile?.is_admin) {
+    return toast('Admin access required.', true);
+  }
+
+  try {
+    const { error } = await sb.rpc('prido_admin_set_member', {
+      p_user_id: id,
+      p_approved: true,
+      p_verified: false
+    });
+
+    if (error) throw error;
+
+    toast('Member approved.');
+    await loadPending();
+  } catch (e) {
+    console.error('Approval error:', e);
+    toast(e.message || 'Could not approve user.', true);
+  }
+}let selectedChatFriend='';
 async function loadChatFriends(){if(!sb||!currentUser)return;const sel=$('chatFriend');sel.innerHTML='<option value="">Loading approved members…</option>';try{const {data,error}=await sb.from('profiles').select('id,display_name,is_admin').eq('is_approved',true).order('display_name');if(error)throw error;const friends=(data||[]).filter(p=>p.id!==currentUser.id);if(!friends.length){sel.innerHTML='<option value="">No other approved members yet</option>';return;}sel.innerHTML='<option value="">Choose a friend…</option>'+friends.map(p=>`<option value="${esc(p.id)}">${esc(p.is_admin?'Pritam Kumar Mandal':(p.display_name||'PRIDO Member'))}</option>`).join('');if(selectedChatFriend&&friends.some(p=>p.id===selectedChatFriend))sel.value=selectedChatFriend;else selectedChatFriend='';if(selectedChatFriend)await loadDirectMessages();}catch(e){console.error('Chat members:',e);sel.innerHTML='<option value="">Could not load members</option>';toast('Chat setup needed: '+(e.message||'check SQL setup'),true);}}
 async function loadDirectMessages(){const friendId=$('chatFriend').value;if(!friendId||!currentUser)return;selectedChatFriend=friendId;$('chatWith').textContent=$('chatFriend').selectedOptions[0]?.textContent||'Private chat';$('chatMessages').innerHTML='<div class="chat-empty">Loading messages…</div>';try{const {data,error}=await sb.from('direct_messages').select('id,sender_id,receiver_id,content,created_at').or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${currentUser.id})`).order('created_at',{ascending:true}).limit(200);if(error)throw error;const rows=data||[];$('chatMessages').innerHTML=rows.length?rows.map(m=>`<div class="chat-msg ${m.sender_id===currentUser.id?'mine':''}"><div>${esc(m.content)}</div><div class="meta">${m.sender_id===currentUser.id?'You':'Friend'} · ${esc(ago(m.created_at))}</div></div>`).join(''):'<div class="chat-empty">No messages yet. Say hello 👋</div>';$('chatMessages').scrollTop=$('chatMessages').scrollHeight;}catch(e){console.error('Chat load:',e);$('chatMessages').innerHTML=`<div class="chat-empty">${esc(e.message||'Could not load chat. Run the supplied SQL setup in Supabase.')}</div>`;}}
 async function sendDirectMessage(e){e.preventDefault();const receiver=$('chatFriend').value,content=$('chatText').value.trim(),b=$('sendChat');if(!receiver)return toast('Choose a friend first.',true);if(!content)return;b.disabled=true;try{const {error}=await sb.from('direct_messages').insert({sender_id:currentUser.id,receiver_id:receiver,content});if(error)throw error;$('chatText').value='';await loadDirectMessages();}catch(e){console.error('Chat send:',e);toast(e.message||'Could not send message. Check direct_messages table and RLS.',true);}finally{b.disabled=false;}}
