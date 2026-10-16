@@ -77,7 +77,7 @@ async function sendDirectMessage(e){e.preventDefault();const receiver=$('chatFri
 async function signOut(){try{if(sb){const {error}=await sb.auth.signOut();if(error)throw error;}currentUser=null;myProfile=null;showAuth();resetAuth();setStatus('Signed out');}catch(e){toast(e.message||'Could not sign out.',true);}}
 
 const memberRoster = [
- {name:'Ansh Singh',handle:'Ansh-xyt0',category:'boys'},
+ {name:'Ansh Singh',handle:'Ansh-xytt0',category:'boys'},
  {name:'Ayush Anand',handle:'ayyushx_18',category:'boys'},
  {name:'Ayush Kumar',handle:'auu_sh_035',category:'boys'},
  {name:'Ayush Raj',handle:'ayush__yadav_28',category:'boys'},
